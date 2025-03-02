@@ -1,54 +1,68 @@
-import OpenAI from "openai";
+import { OpenAI } from "openai";
+import { IAIAssistant, AssistantConfig, ChatMessage } from "./types";
+import { ChatError } from "../utils/errorHandling";
 
-const openai = new OpenAI({
-  apiKey: import.meta.env.VITE_OPEN_AI_API_KEY,
-  dangerouslyAllowBrowser: true,
-});
+export class OpenAIAssistant implements IAIAssistant {
+  private client: OpenAI;
+  private model: string;
 
-export interface ChatMessage {
-  role: "user" | "assistant" | "system";
-  content: string;
-}
-
-export class Assistant {
-  #client;
-  #model: string;
-
-  constructor(model: string = "gpt-4o-mini", client = openai) {
-    this.#client = client;
-    this.#model = model;
+  constructor(config: AssistantConfig) {
+    this.client = new OpenAI({
+      apiKey: config.apiKey,
+      baseURL: config.baseURL,
+      dangerouslyAllowBrowser: true
+    });
+    this.model = config.model || "gpt-4"; // Matches display name
   }
 
-  async chat(content: string, history: ChatMessage[]): Promise<string> {
+  async chat(content: string, history: ChatMessage[] = []) {
     try {
-      const result = await this.#client.chat.completions.create({
-        model: this.#model,
+      const result = await this.client.chat.completions.create({
+        model: this.model,
         messages: [...history, { content, role: "user" }],
       });
 
-      const messageContent = result.choices[0].message.content;
-      if (messageContent === null) {
-        throw new Error("No content returned from API");
-      }
-      return messageContent;
-    } catch (error: unknown) {
-      throw error;
+      return result.choices[0]?.message?.content || "";
+    } catch (error) {
+      throw new ChatError(
+        "API",
+        "OPENAI_API_ERROR",
+        `OpenAI API Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        {
+          metadata: {
+            service: "OpenAI",
+            statusCode: error instanceof OpenAI.APIError ? error.status : undefined
+          },
+          retryable: true
+        }
+      );
     }
   }
 
-  async *chatStream(content: string, history: ChatMessage[] = []): AsyncGenerator<string, void, unknown> {
+  async *chatStream(content: string, history: ChatMessage[] = []) {
     try {
-      const result = await this.#client.chat.completions.create({
-        model: this.#model,
+      const stream = await this.client.chat.completions.create({
+        model: this.model,
         messages: [...history, { content, role: "user" }],
         stream: true,
       });
 
-      for await (const chunk of result) {
+      for await (const chunk of stream) {
         yield chunk.choices[0]?.delta?.content || "";
       }
-    } catch (error: unknown) {
-      throw error;
+    } catch (error) {
+      throw new ChatError(
+        "API",
+        "OPENAI_API_ERROR",
+        `OpenAI API Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        {
+          metadata: {
+            service: "OpenAI",
+            statusCode: error instanceof OpenAI.APIError ? error.status : undefined
+          },
+          retryable: true
+        }
+      );
     }
   }
 }

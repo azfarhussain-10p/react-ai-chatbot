@@ -1,29 +1,64 @@
-.App {
+/* App.module.css */
+.appContainer {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-height: 100vh;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  gap: 1.5rem;
+}
+
+.appHeader {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
   align-items: center;
-  gap: 16px;
-  height: 100vh;
-  padding: 16px;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
 }
 
-.Header {
-  text-align: center;
+.brandContainer {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
-.Logo {
-  width: 64px;
-  height: 64px;
+.logo {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
 }
 
-.Title {
+.appTitle {
   margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--primary-color);
 }
 
-.ChatContainer {
-  flex-grow: 1;
-  width: 100%;
-  background: light-dark(#ffffff, #212121);
-  border-radius: 16px;
-  overflow-y: auto;
+.chatWrapper {
+  position: relative;
+  border-radius: 0.75rem;
+  background: var(--surface-color);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.appFooter {
+  text-align: center;
+  padding: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.rateLimitDisplay {
+  position: fixed;
+  bottom: 70px;
+  right: 20px;
+  padding: 0.5rem 1rem;
+  background: var(--color-surface);
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
 }

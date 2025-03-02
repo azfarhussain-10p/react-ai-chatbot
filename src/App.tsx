@@ -1,72 +1,176 @@
-import { JSX, useState } from "react";
-import { Assistant } from "./assistants/googleai";
-import { Loader } from "./components/Loader/Loader";
-import { Chat, ChatMessage } from "./components/Chat/Chat";
-import { Controls } from "./components/Controls/Controls";
-import styles from "./App.module.css";
+import { JSX, useState, useCallback, useEffect } from 'react';
+import styles from './App.module.css';
+import { ChatError } from './utils/errorHandling';
+import { ToastProvider } from './contexts/ToastContext';
+import { useNotifications } from './utils/notifications';
+import { createAssistant, ModelType, ChatMessage } from "./assistants";
+import {
+  Chat,
+  Controls,
+  Loader,
+  SettingsPanel,
+  ConversationHistory,
+  ThemeToggle
+} from "./components";
+import {
+  useTheme,
+  useRateLimiter,
+  useConversationHistory
+} from "./hooks";
+
+// Wrap your main App component
+function Root() {
+  return (
+    <ToastProvider>
+      <App />
+    </ToastProvider>
+  );
+}
 
 function App(): JSX.Element {
-  const assistant = new Assistant();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isStreaming, setIsStreaming] = useState<boolean>(false);
+  const { showUserNotification, logErrorToService } = useNotifications();
+  const { theme, toggleTheme } = useTheme();
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const { messages, setMessages, addMessage, updateLastMessage } = useConversationHistory();
+  const [isLoading, setIsLoading] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<ModelType>('chatgpt');
+  const [conversations, setConversations] = useState<Array<{
+    id: string;
+    messages: ChatMessage[];
+    timestamp: Date;
+  }>>([]);
 
-  function updateLastMessageContent(content: string): void {
-    setMessages((prevMessages) =>
-      prevMessages.map((message, index) =>
-        index === prevMessages.length - 1
-          ? { ...message, content: `${message.content}${content}` }
-          : message
-      )
-    );
-  }
+  const [rateLimit, setRateLimit] = useState(() => {
+    const saved = localStorage.getItem('rateLimit');
+    return saved ? Math.min(20, Math.max(1, Number(saved))) : 10;
+  });
+  const {
+    isLimited,
+    checkLimit,
+    currentCount,
+    maxRequests
+  } = useRateLimiter(rateLimit);
 
-  function addMessage(message: ChatMessage): void {
-    setMessages((prevMessages) => [...prevMessages, message]);
-  }
+  const handleError = useCallback((error: unknown) => {
+    const defaultMessage = "An unexpected error occurred. Please try again.";
 
-  async function handleContentSend(content: string): Promise<void> {
-    addMessage({ content, role: "user" });
-    setIsLoading(true);
+    if (error instanceof ChatError) {
+      showUserNotification(error.message);
+    } else {
+      logErrorToService(error);
+      showUserNotification(defaultMessage);
+    }
+  }, [showUserNotification, logErrorToService]);
+
+  const handleContentSend = useCallback(async (content: string) => {
+    if (isLimited) {
+      showUserNotification(`Rate limit exceeded (${currentCount}/${rateLimit})`, 'warning');
+      return;
+    }
+
     try {
-      // assistant.chatStream returns an async iterable (e.g. AsyncGenerator<string, void, unknown>)
-      const result = await assistant.chatStream(content);
-      let isFirstChunk = false;
+      const assistant = createAssistant(selectedModel);
+      addMessage({ content, role: 'user' });
+      setIsLoading(true);
+      checkLimit();
 
-      for await (const chunk of result) {
-        if (!isFirstChunk) {
-          isFirstChunk = true;
-          addMessage({ content: "", role: "assistant" });
+      const stream = await assistant.chatStream(content);
+      let accumulatedContent = '';
+      let isFirstChunk = true;
+
+      for await (const chunk of stream) {
+        if (isFirstChunk) {
+          addMessage({ content: '', role: 'assistant' });
           setIsLoading(false);
           setIsStreaming(true);
+          isFirstChunk = false;
         }
-        updateLastMessageContent(chunk);
+        accumulatedContent += chunk;
+        updateLastMessage(accumulatedContent);
       }
 
-      setIsStreaming(false);
-    } catch (error: unknown) {
-      addMessage({
-        content: "Sorry, I couldn't process your request. Please try again!",
-        role: "system",
-      });
+      // Add to conversation history
+      setConversations(prev => [...prev, {
+        id: Date.now().toString(),
+        messages: [...messages, { role: 'user', content }, { role: 'assistant', content: accumulatedContent }],
+        timestamp: new Date()
+      }]);
+    } catch (error) {
+      handleError(error);
+    } finally {
       setIsLoading(false);
       setIsStreaming(false);
     }
-  }
+  }, [selectedModel, isLimited, checkLimit, addMessage, updateLastMessage, messages, handleError]);
+
+  // Load initial conversations from localStorage
+  useEffect(() => {
+    const savedConversations = localStorage.getItem('conversations');
+    if (savedConversations) {
+      setConversations(JSON.parse(savedConversations));
+    }
+  }, []);
+
+  // Save conversations to localStorage
+  useEffect(() => {
+    localStorage.setItem('conversations', JSON.stringify(conversations));
+  }, [conversations]);
 
   return (
-    <div className={styles.App}>
-      {isLoading && <Loader />}
-      <header className={styles.Header}>
-        <img className={styles.Logo} src="/robot.png" alt="Chat Bot Logo" />
-        <h2 className={styles.Title}>AI Chatbot</h2>
+    <div className={`${styles.appContainer} ${theme}`}>
+      <header className={styles.appHeader}>
+        <div className={styles.headerLeft}>
+          <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
+          <button
+            className={styles.settingsButton}
+            onClick={() => setIsSettingsOpen(true)}
+            aria-label="Open settings"
+          >
+            ⚙️
+          </button>
+        </div>
+
+        <div className={styles.headerCenter}>
+          <h1 className={styles.appTitle}>AI Chat Assistant</h1>
+        </div>
+
+        <div className={styles.headerRight}>
+          <ConversationHistory
+            conversations={conversations}
+            onSelect={(selectedMessages) => {
+              setMessages(selectedMessages);
+            }}
+            currentMessages={messages}
+          />
+        </div>
       </header>
-      <div className={styles.ChatContainer}>
+
+      <main className={styles.chatWrapper}>
         <Chat messages={messages} />
-      </div>
-      <Controls isDisabled={isLoading || isStreaming} onSend={handleContentSend} />
+        {isLoading && <Loader />}
+      </main>
+
+      <Controls
+        isDisabled={isLoading || isStreaming || isLimited}
+        onSend={handleContentSend}
+      />
+
+      <SettingsPanel
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        selectedModel={selectedModel}
+        onModelChange={setSelectedModel}
+      />
+
+      <footer className={styles.appFooter}>
+        <p className={styles.copyright}>
+          © {new Date().getFullYear()} 10Pearls Pakistan.
+          Developed by Syed Azfar Hussain, Principal Test Consultant.
+        </p>
+      </footer>
     </div>
   );
 }
 
-export default App;
+export default Root;

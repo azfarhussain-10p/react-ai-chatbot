@@ -1,0 +1,32 @@
+/* src/components/ThemeToggle/ThemeToggle.module.css */
+.toggle {
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.toggle:hover {
+  background-color: var(--color-hover);
+}
+
+.switch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  transition: transform 0.3s ease;
+}
+
+.switch[data-theme="dark"] {
+  transform: rotate(180deg);
+}
+
+.switch svg {
+  transition: fill 0.3s ease;
+}

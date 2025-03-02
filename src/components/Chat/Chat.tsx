@@ -18,7 +18,7 @@ interface ChatProps {
   messages: ChatMessage[];
 }
 
-export function Chat({ messages }: ChatProps): JSX.Element {
+export function Chat({ messages }: ChatProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Group messages by starting a new group whenever a message with role "user" is encountered.

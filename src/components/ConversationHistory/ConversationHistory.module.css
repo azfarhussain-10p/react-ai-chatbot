@@ -1,0 +1,45 @@
+/* src/components/ConversationHistory/ConversationHistory.module.css */
+.container {
+  background: var(--color-surface);
+  border-radius: 8px;
+  padding: 1rem;
+  min-width: 250px;
+}
+
+.title {
+  margin: 0 0 1rem 0;
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.item {
+  padding: 0.5rem;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.item:hover {
+  background-color: var(--color-hover);
+}
+
+.date {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+.preview {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
